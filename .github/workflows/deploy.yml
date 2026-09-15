@@ -1,0 +1,22 @@
+name: Trigger deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch to infrastructure
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.INFRA_DISPATCH_PAT }}
+          repository: salmansaeed507/demo-infrastructure
+          event-type: deploy-api-gateway
+          client-payload: |
+            {
+              "ref": "${{ github.sha }}",
+              "repo": "${{ github.repository }}"
+            }
