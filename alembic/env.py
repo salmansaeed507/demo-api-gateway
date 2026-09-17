@@ -18,12 +18,24 @@ if database_url:
 
 target_metadata = Base.metadata
 
+_IGNORED_TABLES = frozenset({"alembic_version_csa", "alembic_version"})
+
+
+def include_object(object, name, type_, reflected, compare_to):
+    if type_ == "table" and (
+        name.startswith("csa_") or name in _IGNORED_TABLES
+    ):
+        return False
+    return True
+
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
         target_metadata=target_metadata,
+        version_table="alembic_version_gateway",
+        include_object=include_object,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -40,7 +52,12 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            version_table="alembic_version_gateway",
+            include_object=include_object,
+        )
 
         with context.begin_transaction():
             context.run_migrations()

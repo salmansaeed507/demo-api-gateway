@@ -6,6 +6,7 @@ from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from .csa_client import purge_csa_user
 from .dependencies import get_db
 from .models import User
 from .redis_client import (
@@ -41,8 +42,16 @@ def _parse_bearer_token(authorization: str | None) -> str:
     return token
 
 
-def end_session(token: str) -> None:
-    delete_auth_session(token)
+def end_session(token: str, user_id: int | None = None) -> None:
+    deleted_user_id = delete_auth_session(token)
+    uid = user_id if user_id is not None else deleted_user_id
+    if uid is None:
+        return
+    try:
+        purge_csa_user(uid)
+    except Exception:
+        # Best-effort cleanup; session is already cleared.
+        pass
 
 
 def create_user_with_session(db: Session, name: str) -> CurrentAuth:
@@ -78,7 +87,7 @@ def get_current_user(
     user_id = int(touched["user_id"])
     user = db.scalar(select(User).where(User.id == user_id))
     if user is None:
-        delete_auth_session(token)
+        end_session(token, user_id=user_id)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired session",

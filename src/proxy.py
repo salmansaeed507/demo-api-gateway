@@ -4,8 +4,15 @@ from fastapi.responses import JSONResponse
 
 # from common.logging import request_id_var
 
+_STRIP_HEADERS = {"host", "content-length", "x-user-id"}
 
-async def forward_request(request: Request, base_url: str, path: str) -> Response:
+
+async def forward_request(
+    request: Request,
+    base_url: str,
+    path: str,
+    extra_headers: dict[str, str] | None = None,
+) -> Response:
     target_url = f"{base_url.rstrip('/')}/{path.lstrip('/')}"
     if request.url.query:
         target_url = f"{target_url}?{request.url.query}"
@@ -13,8 +20,10 @@ async def forward_request(request: Request, base_url: str, path: str) -> Respons
     headers = {
         key: value
         for key, value in request.headers.items()
-        if key.lower() not in {"host", "content-length"}
+        if key.lower() not in _STRIP_HEADERS
     }
+    if extra_headers:
+        headers.update(extra_headers)
 
     body = await request.body()
 
