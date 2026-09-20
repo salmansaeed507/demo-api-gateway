@@ -9,7 +9,6 @@ from .config import settings
 _client: redis.Redis | None = None
 
 SESSION_KEY_PREFIX = "session:"
-TOKEN_INDEX_PREFIX = "session_token:"
 
 
 def get_redis() -> redis.Redis:
@@ -19,21 +18,17 @@ def get_redis() -> redis.Redis:
     return _client
 
 
-def session_key(user_id: int, token: str) -> str:
-    return f"{SESSION_KEY_PREFIX}{user_id}:{token}"
-
-
-def token_index_key(token: str) -> str:
-    return f"{TOKEN_INDEX_PREFIX}{token}"
+def session_key(token: str) -> str:
+    return f"{SESSION_KEY_PREFIX}{token}"
 
 
 def parse_session_key_user_id(key: str) -> int | None:
-    """Extract user_id from session:{user_id}:{token} expire events."""
-    if not key.startswith(SESSION_KEY_PREFIX) or key.startswith(TOKEN_INDEX_PREFIX):
+    """Extract user_id from session:{user_id}.{token_secret} expire events."""
+    if not key.startswith(SESSION_KEY_PREFIX):
         return None
     rest = key[len(SESSION_KEY_PREFIX) :]
-    user_id_str, sep, _token = rest.partition(":")
-    if not sep:
+    user_id_str, sep, secret = rest.partition(".")
+    if not sep or not secret:
         return None
     try:
         return int(user_id_str)
@@ -58,21 +53,12 @@ def save_auth_session(
     }
     client = get_redis()
     ttl = settings.session_idle_seconds
-    encoded = json.dumps(payload)
-    client.setex(session_key(user_id, token), ttl, encoded)
-    client.setex(token_index_key(token), ttl, str(user_id))
+    client.setex(session_key(token), ttl, json.dumps(payload))
 
 
 def get_auth_session(token: str) -> dict[str, Any] | None:
     client = get_redis()
-    user_id_raw = client.get(token_index_key(token))
-    if not user_id_raw:
-        return None
-    try:
-        user_id = int(user_id_raw)
-    except ValueError:
-        return None
-    raw = client.get(session_key(user_id, token))
+    raw = client.get(session_key(token))
     if not raw:
         return None
     try:
@@ -87,15 +73,7 @@ def get_auth_session(token: str) -> dict[str, Any] | None:
 def touch_auth_session(token: str) -> dict[str, Any] | None:
     """Refresh idle TTL and last_activity_at. Returns updated payload or None."""
     client = get_redis()
-    user_id_raw = client.get(token_index_key(token))
-    if not user_id_raw:
-        return None
-    try:
-        user_id = int(user_id_raw)
-    except ValueError:
-        return None
-
-    key = session_key(user_id, token)
+    key = session_key(token)
     raw = client.get(key)
     if not raw:
         return None
@@ -106,24 +84,22 @@ def touch_auth_session(token: str) -> dict[str, Any] | None:
     if not isinstance(data, dict) or "user_id" not in data:
         return None
     data["last_activity_at"] = datetime.now(timezone.utc).isoformat()
-    encoded = json.dumps(data)
-    ttl = settings.session_idle_seconds
-    client.setex(key, ttl, encoded)
-    client.setex(token_index_key(token), ttl, str(user_id))
+    client.setex(key, settings.session_idle_seconds, json.dumps(data))
     return data
 
 
 def delete_auth_session(token: str) -> int | None:
-    """Delete session keys. Returns user_id when known."""
+    """Delete session key. Returns user_id when known."""
     client = get_redis()
-    user_id_raw = client.get(token_index_key(token))
+    key = session_key(token)
+    raw = client.get(key)
     user_id: int | None = None
-    if user_id_raw is not None:
+    if raw:
         try:
-            user_id = int(user_id_raw)
-        except ValueError:
+            data = json.loads(raw)
+            if isinstance(data, dict) and "user_id" in data:
+                user_id = int(data["user_id"])
+        except (json.JSONDecodeError, TypeError, ValueError):
             user_id = None
-        if user_id is not None:
-            client.delete(session_key(user_id, token))
-    client.delete(token_index_key(token))
+    client.delete(key)
     return user_id

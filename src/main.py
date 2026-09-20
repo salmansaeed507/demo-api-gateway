@@ -12,7 +12,7 @@ from .config import settings
 from .csa_client import purge_csa_user, seed_csa_user
 from .dependencies import get_db
 from .proxy import forward_request
-from .redis_client import get_redis, parse_session_key_user_id, token_index_key
+from .redis_client import get_redis, parse_session_key_user_id
 from .schemas import LoginRequest, LoginResponse, SessionResponse
 
 logger = logging.getLogger(__name__)
@@ -37,9 +37,6 @@ def _session_expiry_loop() -> None:
             user_id = parse_session_key_user_id(key)
             if user_id is None:
                 continue
-            parts = key.split(":", 2)
-            if len(parts) == 3:
-                client.delete(token_index_key(parts[2]))
             try:
                 purge_csa_user(user_id)
             except Exception:

@@ -61,7 +61,7 @@ def create_user_with_session(db: Session, name: str) -> CurrentAuth:
     db.refresh(user)
 
     now = datetime.now(timezone.utc)
-    token = secrets.token_urlsafe(32)
+    token = f"{user.id}.{secrets.token_urlsafe(32)}"
     save_auth_session(token, user_id=user.id, name=user.name, last_activity_at=now)
     return CurrentAuth(user=user, token=token, last_activity_at=now)
 
