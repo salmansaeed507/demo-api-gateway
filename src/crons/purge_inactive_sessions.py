@@ -4,16 +4,18 @@ from sqlalchemy import select
 
 from common.db import create_session_factory
 
-from .config import settings
-from .csa_client import purge_csa_user
-from .models import User
-from .redis_client import list_active_session_user_ids
+from ..config import settings
+from ..csa_client import purge_csa_user
+from ..models import User
+from ..redis_client import list_active_session_user_ids
+from ._scheduler import crons
 
 logger = logging.getLogger(__name__)
 
 _session_factory = create_session_factory(settings.database_url)
 
 
+@crons.cron(settings.purge_inactive_sessions_cron, name="purge_inactive_sessions")
 def purge_inactive_sessions() -> None:
     """Purge CSA DB data for users with no active Redis session."""
     active_user_ids = list_active_session_user_ids()

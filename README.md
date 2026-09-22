@@ -17,7 +17,7 @@ make redis   # Redis on :6379
 uv run alembic upgrade head
 ```
 
-Optional env: `REDIS_URL` (default `redis://localhost:6379/0`), `DATABASE_URL`, `LOGIN_TOKEN`, `SESSION_IDLE_SECONDS`.
+Optional env: `REDIS_URL` (default `redis://localhost:6379/0`), `DATABASE_URL`, `LOGIN_TOKEN`, `SESSION_IDLE_SECONDS`, `PURGE_INACTIVE_SESSIONS_CRON` (default `0 */2 * * *`; local often `* * * * *` for every minute).
 
 ## Run locally
 

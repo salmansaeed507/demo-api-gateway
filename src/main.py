@@ -1,24 +1,25 @@
+import logging
+
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi_crons import Crons
 from sqlalchemy.orm import Session
 
+from . import crons
 from .auth import CurrentAuth, create_user_with_session, end_session, get_current_user
 from .config import settings
 from .csa_client import seed_csa_user
 from .dependencies import get_db
 from .proxy import forward_request
 from .schemas import LoginRequest, LoginResponse, SessionResponse
-from .session_cleanup import purge_inactive_sessions
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s - %(message)s",
+)
 
 app = FastAPI(title="API Gateway", version="0.1.0")
-
-crons = Crons(app)
-
-@crons.cron("0 */2 * * *", name="purge_inactive_sessions") # every 2 hours
-def purge_inactive_sessions_job():
-    purge_inactive_sessions()
+crons.init(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,6 +28,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 @app.get("/health")
 def health():
