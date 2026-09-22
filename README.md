@@ -6,14 +6,14 @@ API Gateway — single public backend entry point for demos.
 
 - Route `/support/*` to backend services
 - Session auth in Redis (TTL); demo data FKed to users in Postgres
-- On Redis session expiry, app deletes users (and cascaded products/chats/orders) with no live Redis session
+- Cron job every 2 hours purges CSA data for users with no live Redis session
 - CORS, request IDs, structured logging, basic rate limiting
 
 ## Setup
 
 ```bash
 uv sync
-make redis   # Redis on :6379 with keyspace expiry notifications (Ex)
+make redis   # Redis on :6379
 uv run alembic upgrade head
 ```
 

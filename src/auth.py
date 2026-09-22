@@ -54,11 +54,23 @@ def end_session(token: str, user_id: int | None = None) -> None:
         pass
 
 
-def create_user_with_session(db: Session, name: str) -> CurrentAuth:
-    user = User(name=name.strip())
-    db.add(user)
-    db.commit()
-    db.refresh(user)
+def create_user_with_session(
+    db: Session,
+    name: str,
+    user_id: int | None = None,
+) -> CurrentAuth:
+    cleaned = name.strip()
+    user: User | None = None
+    if user_id is not None:
+        existing = db.scalar(select(User).where(User.id == user_id))
+        if existing is not None and existing.name == cleaned:
+            user = existing
+
+    if user is None:
+        user = User(name=cleaned)
+        db.add(user)
+        db.commit()
+        db.refresh(user)
 
     now = datetime.now(timezone.utc)
     token = f"{user.id}.{secrets.token_urlsafe(32)}"

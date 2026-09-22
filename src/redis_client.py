@@ -23,7 +23,7 @@ def session_key(token: str) -> str:
 
 
 def parse_session_key_user_id(key: str) -> int | None:
-    """Extract user_id from session:{user_id}.{token_secret} expire events."""
+    """Extract user_id from session:{user_id}.{token_secret} keys."""
     if not key.startswith(SESSION_KEY_PREFIX):
         return None
     rest = key[len(SESSION_KEY_PREFIX) :]
@@ -34,6 +34,17 @@ def parse_session_key_user_id(key: str) -> int | None:
         return int(user_id_str)
     except ValueError:
         return None
+
+
+def list_active_session_user_ids() -> set[int]:
+    """Return user_ids that currently have a live Redis session key."""
+    client = get_redis()
+    active: set[int] = set()
+    for key in client.scan_iter(match=f"{SESSION_KEY_PREFIX}*"):
+        user_id = parse_session_key_user_id(key)
+        if user_id is not None:
+            active.add(user_id)
+    return active
 
 
 def save_auth_session(

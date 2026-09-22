@@ -1,70 +1,24 @@
-import logging
-import threading
-from contextlib import asynccontextmanager
-
 import httpx
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi_crons import Crons
 from sqlalchemy.orm import Session
 
 from .auth import CurrentAuth, create_user_with_session, end_session, get_current_user
 from .config import settings
-from .csa_client import purge_csa_user, seed_csa_user
+from .csa_client import seed_csa_user
 from .dependencies import get_db
 from .proxy import forward_request
-from .redis_client import get_redis, parse_session_key_user_id
 from .schemas import LoginRequest, LoginResponse, SessionResponse
+from .session_cleanup import purge_inactive_sessions
 
-logger = logging.getLogger(__name__)
+app = FastAPI(title="API Gateway", version="0.1.0")
 
-_expiry_stop = threading.Event()
-_expiry_thread: threading.Thread | None = None
+crons = Crons(app)
 
-
-def _session_expiry_loop() -> None:
-    """Purge CSA data when a Redis session key expires (idle timeout)."""
-    client = get_redis()
-    pubsub = client.pubsub()
-    try:
-        pubsub.psubscribe("__keyevent@*__:expired")
-        while not _expiry_stop.is_set():
-            message = pubsub.get_message(ignore_subscribe_messages=True, timeout=1.0)
-            if message is None:
-                continue
-            key = message.get("data")
-            if not isinstance(key, str):
-                continue
-            user_id = parse_session_key_user_id(key)
-            if user_id is None:
-                continue
-            try:
-                purge_csa_user(user_id)
-            except Exception:
-                logger.exception("Failed to purge CSA data for expired user_id=%s", user_id)
-    finally:
-        try:
-            pubsub.close()
-        except Exception:
-            pass
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    global _expiry_thread
-    _expiry_stop.clear()
-    _expiry_thread = threading.Thread(
-        target=_session_expiry_loop,
-        name="session-expiry-listener",
-        daemon=True,
-    )
-    _expiry_thread.start()
-    yield
-    _expiry_stop.set()
-    if _expiry_thread is not None:
-        _expiry_thread.join(timeout=2.0)
-
-
-app = FastAPI(title="API Gateway", version="0.1.0", lifespan=lifespan)
+@crons.cron("0 */2 * * *", name="purge_inactive_sessions") # every 2 hours
+def purge_inactive_sessions_job():
+    purge_inactive_sessions()
 
 app.add_middleware(
     CORSMiddleware,
@@ -73,7 +27,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
 
 @app.get("/health")
 def health():
@@ -88,7 +41,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             detail="Invalid login token",
         )
 
-    auth = create_user_with_session(db, body.name)
+    auth = create_user_with_session(db, body.name, user_id=body.user_id)
     try:
         seed_csa_user(auth.user.id)
     except httpx.HTTPError as exc:
@@ -107,8 +60,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/logout")
-def logout(auth: CurrentAuth = Depends(get_current_user)):
-    end_session(auth.token, user_id=auth.user.id)
+def logout(_auth: CurrentAuth = Depends(get_current_user)):
     return {"status": "ok"}
 
 

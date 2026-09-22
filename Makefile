@@ -6,5 +6,4 @@ migrate:
 
 redis:
 	-docker rm -f api-gateway-redis
-	docker run -d --name api-gateway-redis -p 6379:6379 redis:7-alpine \
-		redis-server --notify-keyspace-events Ex
+	docker run -d --name api-gateway-redis -p 6379:6379 redis:7-alpine
