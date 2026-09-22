@@ -11,6 +11,7 @@ from .dependencies import get_db
 from .models import User
 from .redis_client import (
     delete_auth_session,
+    find_auth_session_for_user,
     get_auth_session,
     save_auth_session,
     touch_auth_session,
@@ -71,6 +72,14 @@ def create_user_with_session(
         db.add(user)
         db.commit()
         db.refresh(user)
+
+    existing = find_auth_session_for_user(user.id)
+    if existing is not None:
+        token, _ = existing
+        touched = touch_auth_session(token)
+        if touched is not None:
+            activity = datetime.fromisoformat(touched["last_activity_at"])
+            return CurrentAuth(user=user, token=token, last_activity_at=activity)
 
     now = datetime.now(timezone.utc)
     token = f"{user.id}.{secrets.token_urlsafe(32)}"

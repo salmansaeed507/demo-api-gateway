@@ -11,7 +11,6 @@ from .config import settings
 from .csa_client import seed_csa_user
 from .dependencies import get_db
 from .proxy import forward_request
-from .redis_client import delete_auth_session
 from .schemas import LoginRequest, LoginResponse, SessionResponse
 
 logging.basicConfig(
@@ -63,8 +62,7 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
 
 @app.post("/logout")
-def logout(auth: CurrentAuth = Depends(get_current_user)):
-    delete_auth_session(auth.token)
+def logout(_auth: CurrentAuth = Depends(get_current_user)):
     return {"status": "ok"}
 
 

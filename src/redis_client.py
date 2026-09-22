@@ -47,6 +47,24 @@ def list_active_session_user_ids() -> set[int]:
     return active
 
 
+def find_auth_session_for_user(user_id: int) -> tuple[str, dict[str, Any]] | None:
+    """Return (token, payload) for an existing Redis session for this user, if any."""
+    client = get_redis()
+    for key in client.scan_iter(match=f"{SESSION_KEY_PREFIX}{user_id}.*"):
+        raw = client.get(key)
+        if not raw:
+            continue
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict) or "user_id" not in data:
+            continue
+        token = key[len(SESSION_KEY_PREFIX) :]
+        return token, data
+    return None
+
+
 def save_auth_session(
     token: str,
     *,
