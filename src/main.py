@@ -7,12 +7,21 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from . import crons
+from . import s3 as s3_storage
 from .auth import CurrentAuth, create_user_with_session, end_session, get_current_user
 from .config import settings
 from .csa_client import seed_csa_user
 from .dependencies import get_db
 from .proxy import forward_request
-from .schemas import LoginRequest, LoginResponse, SessionResponse
+from .schemas import (
+    LoginRequest,
+    LoginResponse,
+    PresignDownloadRequest,
+    PresignDownloadResponse,
+    PresignUploadRequest,
+    PresignUploadResponse,
+    SessionResponse,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -80,6 +89,35 @@ def current_session(auth: CurrentAuth = Depends(get_current_user)):
         user_id=auth.user.id,
         name=auth.user.name,
         last_activity_at=auth.last_activity_at,
+    )
+
+
+@app.post("/files/presign-upload", response_model=PresignUploadResponse)
+def presign_upload(
+    body: PresignUploadRequest,
+    _auth: CurrentAuth = Depends(get_current_user),
+):
+    s3_storage.require_s3_configured()
+    key = s3_storage.build_object_key(body.filename)
+    return PresignUploadResponse(
+        key=key,
+        upload_url=s3_storage.presign_upload(key, body.content_type),
+        download_url=s3_storage.presign_download(key),
+        expires_in=settings.s3_presign_expires_seconds,
+    )
+
+
+@app.post("/files/presign-download", response_model=PresignDownloadResponse)
+def presign_download(
+    body: PresignDownloadRequest,
+    _auth: CurrentAuth = Depends(get_current_user),
+):
+    s3_storage.require_s3_configured()
+    s3_storage.assert_key_allowed(body.key)
+    return PresignDownloadResponse(
+        key=body.key,
+        download_url=s3_storage.presign_download(body.key),
+        expires_in=settings.s3_presign_expires_seconds,
     )
 
 

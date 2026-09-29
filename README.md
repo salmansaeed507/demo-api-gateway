@@ -19,6 +19,15 @@ uv run alembic upgrade head
 
 Optional env: `REDIS_URL` (default `redis://localhost:6379/0`), `DATABASE_URL`, `LOGIN_TOKEN`, `SESSION_IDLE_SECONDS`, `PURGE_INACTIVE_SESSIONS_CRON` (default `0 */2 * * *`; local often `* * * * *` for every minute).
 
+S3 / RustFS (presigned uploads+downloads): `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` (default `us-east-1`), `S3_ENDPOINT_URL` (e.g. `http://localhost:9000`; omit for AWS), `S3_BUCKET`, `S3_KEY_PREFIX` (default `uploads`), `S3_PRESIGN_EXPIRES_SECONDS` (default `3600`).
+
+Auth-gated endpoints:
+
+- `POST /files/presign-upload` `{ "content_type", "filename?" }` → `{ key, upload_url, download_url, expires_in }`
+- `POST /files/presign-download` `{ "key" }` → `{ key, download_url, expires_in }`
+
+Frontend uploads/downloads directly to the presigned URLs (send the same `Content-Type` on PUT as used when requesting the upload URL).
+
 ## Run locally
 
 ```bash

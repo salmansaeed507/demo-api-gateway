@@ -20,3 +20,25 @@ class SessionResponse(BaseModel):
     user_id: int
     name: str
     last_activity_at: datetime
+
+
+class PresignUploadRequest(BaseModel):
+    content_type: str = Field(min_length=1, max_length=255)
+    filename: str | None = Field(default=None, max_length=255)
+
+
+class PresignDownloadRequest(BaseModel):
+    key: str = Field(min_length=1, max_length=1024)
+
+
+class PresignUploadResponse(BaseModel):
+    key: str
+    upload_url: str
+    download_url: str
+    expires_in: int
+
+
+class PresignDownloadResponse(BaseModel):
+    key: str
+    download_url: str
+    expires_in: int
