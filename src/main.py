@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 import httpx
@@ -28,6 +29,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def mimic_production_latency(request: Request, call_next):
+    if settings.request_delay_seconds > 0:
+        await asyncio.sleep(settings.request_delay_seconds)
+    return await call_next(request)
 
 
 @app.get("/health")

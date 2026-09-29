@@ -10,6 +10,7 @@ class Settings(BaseAppSettings):
     cors_origins: str = "http://localhost:5173,http://localhost:3000"
     rate_limit_requests: int = 100
     rate_limit_window_seconds: int = 60
+    request_delay_seconds: float = 0.7  # local default; set 0 in production
     lead_qualification_url: str = "http://lead-qualification-system:8000"
     customer_support_url: str = "http://localhost:5071"
 
