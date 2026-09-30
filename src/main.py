@@ -6,8 +6,9 @@ from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
+from common import s3 as s3_storage
+
 from . import crons
-from . import s3 as s3_storage
 from .auth import CurrentAuth, create_user_with_session, end_session, get_current_user
 from .config import settings
 from .csa_client import seed_csa_user
@@ -97,12 +98,12 @@ def presign_upload(
     body: PresignUploadRequest,
     _auth: CurrentAuth = Depends(get_current_user),
 ):
-    s3_storage.require_s3_configured()
-    key = s3_storage.build_object_key(body.filename)
+    s3_storage.require_s3_configured(settings)
+    key = s3_storage.build_object_key(settings, body.filename)
     return PresignUploadResponse(
         key=key,
-        upload_url=s3_storage.presign_upload(key, body.content_type),
-        download_url=s3_storage.presign_download(key),
+        upload_url=s3_storage.presign_upload(settings, key, body.content_type),
+        download_url=s3_storage.presign_download(settings, key),
         expires_in=settings.s3_presign_expires_seconds,
     )
 
@@ -112,11 +113,11 @@ def presign_download(
     body: PresignDownloadRequest,
     _auth: CurrentAuth = Depends(get_current_user),
 ):
-    s3_storage.require_s3_configured()
-    s3_storage.assert_key_allowed(body.key)
+    s3_storage.require_s3_configured(settings)
+    s3_storage.assert_key_allowed(settings, body.key)
     return PresignDownloadResponse(
         key=body.key,
-        download_url=s3_storage.presign_download(body.key),
+        download_url=s3_storage.presign_download(settings, body.key),
         expires_in=settings.s3_presign_expires_seconds,
     )
 
