@@ -1,10 +1,13 @@
 import httpx
 from fastapi import Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 # from common.logging import request_id_var
 
 _STRIP_HEADERS = {"host", "content-length", "x-user-id"}
+_STRIP_RESPONSE_HEADERS = {"content-encoding", "transfer-encoding", "connection"}
+# Proxied streams (e.g. SSE) can outlive a short read timeout.
+_PROXY_TIMEOUT = httpx.Timeout(connect=30.0, read=None, write=30.0, pool=30.0)
 
 
 async def forward_request(
@@ -27,27 +30,41 @@ async def forward_request(
 
     body = await request.body()
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        try:
-            upstream = await client.request(
+    client = httpx.AsyncClient(timeout=_PROXY_TIMEOUT)
+    try:
+        upstream = await client.send(
+            client.build_request(
                 request.method,
                 target_url,
                 headers=headers,
                 content=body,
-            )
-        except httpx.RequestError as exc:
-            return JSONResponse(
-                status_code=502,
-                content={"detail": f"Upstream service unavailable: {exc}"},
-            )
+            ),
+            stream=True,
+        )
+    except httpx.RequestError as exc:
+        await client.aclose()
+        return JSONResponse(
+            status_code=502,
+            content={"detail": f"Upstream service unavailable: {exc}"},
+        )
 
-    return Response(
-        content=upstream.content,
+    response_headers = {
+        key: value
+        for key, value in upstream.headers.items()
+        if key.lower() not in _STRIP_RESPONSE_HEADERS
+    }
+
+    async def stream_body():
+        try:
+            async for chunk in upstream.aiter_bytes():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
+
+    return StreamingResponse(
+        stream_body(),
         status_code=upstream.status_code,
-        headers={
-            key: value
-            for key, value in upstream.headers.items()
-            if key.lower() not in {"content-encoding", "transfer-encoding", "connection"}
-        },
+        headers=response_headers,
         media_type=upstream.headers.get("content-type"),
     )
