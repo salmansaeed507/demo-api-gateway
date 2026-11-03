@@ -25,6 +25,7 @@ class SessionResponse(BaseModel):
 class PresignUploadRequest(BaseModel):
     content_type: str = Field(min_length=1, max_length=255)
     filename: str | None = Field(default=None, max_length=255)
+    content_length: int = Field(gt=0)
 
 
 class PresignDownloadRequest(BaseModel):

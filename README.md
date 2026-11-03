@@ -13,7 +13,7 @@ API Gateway — single public backend entry point for demos.
 
 ```bash
 uv sync
-make redis   # Redis on :6379
+# Prefer full stack from repo root: ../dev.sh
 uv run alembic upgrade head
 ```
 
@@ -30,7 +30,14 @@ Frontend uploads/downloads directly to the presigned URLs (send the same `Conten
 
 ## Run locally
 
+Preferred (full stack from repo root):
+
 ```bash
-make dev
-# uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 5070
+../dev.sh
+```
+
+Or this service alone:
+
+```bash
+uv run uvicorn src.main:app --reload --host 0.0.0.0 --port 5070
 ```

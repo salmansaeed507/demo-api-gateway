@@ -99,10 +99,17 @@ def presign_upload(
     _auth: CurrentAuth = Depends(get_current_user),
 ):
     s3_storage.require_s3_configured(settings)
+    if body.content_length > settings.s3_max_upload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File exceeds the maximum size of {settings.s3_max_upload_bytes} bytes",
+        )
     key = s3_storage.build_object_key(settings, body.filename)
     return PresignUploadResponse(
         key=key,
-        upload_url=s3_storage.presign_upload(settings, key, body.content_type),
+        upload_url=s3_storage.presign_upload(
+            settings, key, body.content_type, body.content_length
+        ),
         download_url=s3_storage.presign_download(settings, key),
         expires_in=settings.s3_presign_expires_seconds,
     )

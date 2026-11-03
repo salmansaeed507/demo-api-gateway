@@ -13,6 +13,7 @@ class Settings(BaseAppSettings):
     request_delay_seconds: float = 0  # local default; set 0 in production
     lead_qualification_url: str = "http://lead-qualification-system:8000"
     customer_support_url: str = "http://localhost:5071"
+    s3_max_upload_bytes: int = 10 * 1024 * 1024
 
 
 settings = Settings()

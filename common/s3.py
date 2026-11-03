@@ -130,14 +130,22 @@ def assert_staging_key(settings: BaseAppSettings, key: str) -> None:
         )
 
 
-def presign_upload(settings: BaseAppSettings, key: str, content_type: str) -> str:
+def presign_upload(
+    settings: BaseAppSettings,
+    key: str,
+    content_type: str,
+    content_length: int | None = None,
+) -> str:
+    params: dict = {
+        "Bucket": settings.s3_bucket,
+        "Key": key,
+        "ContentType": content_type,
+    }
+    if content_length is not None:
+        params["ContentLength"] = content_length
     return get_s3_client(settings).generate_presigned_url(
         ClientMethod="put_object",
-        Params={
-            "Bucket": settings.s3_bucket,
-            "Key": key,
-            "ContentType": content_type,
-        },
+        Params=params,
         ExpiresIn=settings.s3_presign_expires_seconds,
     )
 
@@ -204,3 +212,14 @@ def delete_object(settings: BaseAppSettings, key: str) -> None:
         Bucket=settings.s3_bucket,
         Key=key.lstrip("/"),
     )
+
+
+def object_size_bytes(settings: BaseAppSettings, key: str) -> int:
+    """Return the size (in bytes) of an existing object, via HEAD."""
+    assert_key_allowed(settings, key)
+    require_s3_configured(settings)
+    response = get_s3_client(settings).head_object(
+        Bucket=settings.s3_bucket,
+        Key=key.lstrip("/"),
+    )
+    return int(response["ContentLength"])
