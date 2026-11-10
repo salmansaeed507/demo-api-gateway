@@ -23,6 +23,7 @@ class CurrentAuth:
     user: User
     token: str
     last_activity_at: datetime
+    is_new_user: bool = False
 
 
 def _parse_bearer_token(authorization: str | None) -> str:
@@ -62,6 +63,7 @@ def create_user_with_session(
 ) -> CurrentAuth:
     cleaned = name.strip()
     user: User | None = None
+    is_new_user = False
     if user_id is not None:
         existing = db.scalar(select(User).where(User.id == user_id))
         if existing is not None and existing.name == cleaned:
@@ -72,6 +74,7 @@ def create_user_with_session(
         db.add(user)
         db.commit()
         db.refresh(user)
+        is_new_user = True
 
     existing = find_auth_session_for_user(user.id)
     if existing is not None:
@@ -79,12 +82,14 @@ def create_user_with_session(
         touched = touch_auth_session(token)
         if touched is not None:
             activity = datetime.fromisoformat(touched["last_activity_at"])
-            return CurrentAuth(user=user, token=token, last_activity_at=activity)
+            return CurrentAuth(
+                user=user, token=token, last_activity_at=activity, is_new_user=is_new_user
+            )
 
     now = datetime.now(timezone.utc)
     token = f"{user.id}.{secrets.token_urlsafe(32)}"
     save_auth_session(token, user_id=user.id, name=user.name, last_activity_at=now)
-    return CurrentAuth(user=user, token=token, last_activity_at=now)
+    return CurrentAuth(user=user, token=token, last_activity_at=now, is_new_user=is_new_user)
 
 
 def get_current_user(

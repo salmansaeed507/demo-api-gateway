@@ -2,7 +2,7 @@ import asyncio
 import logging
 
 import httpx
-from fastapi import Depends, FastAPI, HTTPException, Request, status
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
@@ -13,6 +13,7 @@ from .auth import CurrentAuth, create_user_with_session, end_session, get_curren
 from .config import settings
 from .csa_client import seed_csa_user
 from .dependencies import get_db
+from .notifications import send_new_user_email
 from .proxy import forward_request
 from .schemas import (
     LoginRequest,
@@ -54,7 +55,11 @@ def health():
 
 
 @app.post("/login", response_model=LoginResponse)
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    body: LoginRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+):
     if body.login_token != settings.login_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -70,6 +75,9 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Failed to seed support data: {exc}",
         ) from exc
+
+    if auth.is_new_user:
+        background_tasks.add_task(send_new_user_email, auth.user.id, auth.user.name)
 
     return LoginResponse(
         user_id=auth.user.id,

@@ -15,5 +15,12 @@ class Settings(BaseAppSettings):
     customer_support_url: str = "http://localhost:5071"
     s3_max_upload_bytes: int = 10 * 1024 * 1024
 
+    # New-user notification email (Gmail SMTP; use a Google App Password)
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 465
+    smtp_username: str = ""  # your Gmail address
+    smtp_password: str = ""  # 16-char Gmail App Password
+    notify_email_to: str = ""  # defaults to smtp_username when empty
+
 
 settings = Settings()
